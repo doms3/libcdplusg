@@ -1,0 +1,5 @@
+*.o
+*.a
+*.so
+xcb_test
+*.cdg
