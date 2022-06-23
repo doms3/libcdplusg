@@ -13,4 +13,4 @@ xcb_test : xcb_test.o libcdplusg.a
 	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean :
-	$(RM) libcdplusg.a xcb_test.o xcb_test
+	$(RM) libcdplusg.a cdplusg.o xcb_test.o xcb_test
