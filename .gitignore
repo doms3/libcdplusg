@@ -1,5 +1,6 @@
 *.o
 *.a
 *.so
+*.d
 xcb_test
 *.cdg
