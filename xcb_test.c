@@ -83,7 +83,14 @@ main (int argc, char **argv)
   struct cdplusg_graphics_state *gpx_state = cdplusg_create_graphics_state ();
 
   struct timeval previous_time;
+  struct timeval time_stride;
+
   gettimeofday (&previous_time, NULL);
+
+  timerclear (&time_stride);
+
+  time_stride.tv_usec = 10000 * COMMANDS_PER_FRAME / 3;
+  static_assert (10000 * COMMANDS_PER_FRAME / 3 <= 999999, "too many commands per frame");
 
   unsigned int counter = 0;
   while (cdplusg_get_next_instruction_from_file (&instruction, file) == 1)
@@ -109,9 +116,9 @@ main (int argc, char **argv)
 	      gettimeofday (&next_time, NULL);
 	      timersub (&next_time, &previous_time, &time_difference);
       }
-      while (time_difference.tv_usec < 10000 * COMMANDS_PER_FRAME / 3);
+      while (timercmp (&time_difference, &time_stride, <));
 
-      previous_time = next_time;
+      timeradd (&previous_time, &time_stride, &previous_time);
     }
   }
 
