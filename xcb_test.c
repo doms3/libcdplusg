@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <sys/time.h>
@@ -12,6 +13,7 @@
 
 #define FPS 30
 #define COMMANDS_PER_FRAME (300 / FPS)
+#define SCALE_FACTOR 4
 
 static_assert (300 % FPS == 0, "Frames per second must divide 300.");
 
@@ -47,30 +49,33 @@ main (int argc, char **argv)
   /* Create the window */
   xcb_window_t window = xcb_generate_id (connection);
   xcb_create_window (connection,	// connection          
-		     XCB_COPY_FROM_PARENT,	// depth (same as root)
-		     window,	// window id           
-		     screen->root,	// parent window       
-		     0, 0,	// x, y                
-		     CDPLUSG_SCREEN_WIDTH, CDPLUSG_SCREEN_HEIGHT,	// width, height       
-		     0,		// border_width        
-		     XCB_WINDOW_CLASS_INPUT_OUTPUT,	// class               
-		     screen->root_visual,	// visual              
-		     mask, values);	// masks, not used yet 
+		    XCB_COPY_FROM_PARENT,	// depth (same as root)
+		    window,	// window id
+		    screen->root,	// parent window
+		    0, 0,	// x, y
+		    SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,	// width, height
+		    0,		// border_width
+		    XCB_WINDOW_CLASS_INPUT_OUTPUT,	// class
+		    screen->root_visual,	// visual
+		    mask, values);	// masks, not used yet
 
-  unsigned char image_data[4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT];
+  const size_t image_data_size =
+        SCALE_FACTOR * SCALE_FACTOR * 4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT;
+
+  unsigned char *image_data =
+        (unsigned char *) malloc (image_data_size);
 
   xcb_pixmap_t pixmap = xcb_generate_id (connection);
-  xcb_create_pixmap (connection, 24, pixmap, window, CDPLUSG_SCREEN_WIDTH, CDPLUSG_SCREEN_HEIGHT);
+  xcb_create_pixmap (connection, 24, pixmap, window,
+        SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
 
   xcb_gcontext_t gcontext = xcb_generate_id (connection);
   xcb_create_gc (connection, gcontext, pixmap, 0, NULL);
 
   xcb_image_t *xcb_image = xcb_image_create_native (connection,
-						    CDPLUSG_SCREEN_WIDTH, CDPLUSG_SCREEN_HEIGHT,
-						    XCB_IMAGE_FORMAT_Z_PIXMAP,
-						    24, NULL,
-						    CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT * 4,
-						    image_data);
+	      SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+	      XCB_IMAGE_FORMAT_Z_PIXMAP,
+	      24, NULL, image_data_size, image_data);
 
   xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
 
@@ -100,11 +105,11 @@ main (int argc, char **argv)
 
     if (counter % COMMANDS_PER_FRAME == 0)
     {
-      cdplusg_write_graphics_state_to_pixmap (gpx_state, image_data, CDPLUSG_Z_FORMAT);
+      cdplusg_write_graphics_state_to_pixmap (gpx_state, image_data, CDPLUSG_Z_FORMAT, SCALE_FACTOR);
 
       xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
       xcb_copy_area (connection, pixmap, window, gcontext,
-		     0, 0, 0, 0, CDPLUSG_SCREEN_WIDTH, CDPLUSG_SCREEN_HEIGHT);
+		     0, 0, 0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
 
       xcb_flush (connection);
 
@@ -126,6 +131,7 @@ main (int argc, char **argv)
   xcb_image_destroy (xcb_image);
   xcb_free_pixmap (connection, pixmap);
   xcb_disconnect (connection);
+  free (image_data);
 
   return 0;
 }

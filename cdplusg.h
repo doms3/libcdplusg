@@ -59,6 +59,6 @@ void cdplusg_free_graphics_state (struct cdplusg_graphics_state *);
 void cdplusg_update_graphics_state (struct cdplusg_graphics_state *, struct cdplusg_instruction *);
 
 void cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *, unsigned char *pixmap,
-					     enum cdplusg_pixmap_format);
+					     enum cdplusg_pixmap_format, unsigned int scale_factor);
 
 int cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *, FILE *);

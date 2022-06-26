@@ -288,22 +288,48 @@ cdplusg_update_graphics_state (struct cdplusg_graphics_state *gpx_state,
 
 void
 cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsigned char *pixmap,
-					enum cdplusg_pixmap_format)
+					enum cdplusg_pixmap_format, unsigned int scale_factor)
 {
-  for (int i = 0; i < CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH; i++)
-  {
-    unsigned int index = gpx_state->pixels[i];
-    struct cdplusg_color_table_entry *color = &gpx_state->color_table[index];
+  unsigned int source_index = 0;
+  unsigned int target_index = 0;
+  unsigned int saved_target_index = 0;
 
-    pixmap[4 * i] = color->b;
-    pixmap[4 * i + 1] = color->g;
-    pixmap[4 * i + 2] = color->r;
-    pixmap[4 * i + 3] = color->a;
+  while (source_index < CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT)
+  {
+    unsigned int color_index = gpx_state->pixels[source_index];
+    struct cdplusg_color_table_entry *color = &gpx_state->color_table[color_index];
+
+    for (unsigned int i = 0; i < scale_factor; i++)
+    {
+      assert (target_index < scale_factor * scale_factor * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
+
+      pixmap[target_index] = color->b;
+      pixmap[target_index + 1] = color->g;
+      pixmap[target_index + 2] = color->r;
+      pixmap[target_index + 3] = color->a;
+
+      target_index += 4;
+    }
+
+    source_index += 1;
+
+    if (source_index % CDPLUSG_SCREEN_WIDTH == 0)
+    {
+      for (unsigned int i = 1; i < scale_factor; i++)
+      {
+        assert (target_index < scale_factor * scale_factor * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
+
+        memcpy (&pixmap[target_index], &pixmap[saved_target_index], scale_factor * 4 * CDPLUSG_SCREEN_WIDTH);
+        target_index += scale_factor * 4 * CDPLUSG_SCREEN_WIDTH;
+      }
+
+      saved_target_index = target_index;
+    }
   }
 }
 
 int
-cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *instruction, FILE * file)
+cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *instruction, FILE *file)
 {
   char subchannel_data[CDPLUSG_SUBCHANNEL_WIDTH];
 
