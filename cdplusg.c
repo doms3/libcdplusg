@@ -10,15 +10,14 @@ static_assert (sizeof (struct cdplusg_color_table_entry) == 4,
 	       "struct padding error, contact the maintainer");
 
 static void
-cdplusg_debug_print ([[maybe_unused]]
-		     const char *message)
+cdplusg_debug_print (const char *message)
 {
   fputs (message, stderr);
   return;
 }
 
 static void
-cdplusg_no_op_action (const struct cdplusg_instruction *this, char *,
+cdplusg_no_op_action (const struct cdplusg_instruction *this, unsigned char *,
 		      struct cdplusg_color_table_entry *)
 {
   if (this->type != NO_OP)
@@ -35,20 +34,20 @@ cdplusg_init_no_op_instruction (struct cdplusg_instruction *instruction)
 }
 
 static char *
-cdplusg_get_pixels_at (char *pixels, int row, int col)
+cdplusg_get_pixels_at (unsigned char *pixels, int row, int col)
 {
   return &pixels[row * CDPLUSG_SCREEN_WIDTH + col];
 }
 
 static void
 cdplusg_memory_preset_action (const struct cdplusg_instruction *this,
-			      char *pixels, struct cdplusg_color_table_entry *)
+			      unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != MEMORY_PRESET)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  char color = this->data[0] & 0x0F;
-  char repeat = this->data[1] & 0x0F;
+  unsigned char color = this->data[0] & 0x0F;
+  int repeat = this->data[1] & 0x0F;
 
   if (repeat != 0)
     return;
@@ -57,14 +56,14 @@ cdplusg_memory_preset_action (const struct cdplusg_instruction *this,
   // bytes which is a row of the image 
   for (int i = 0; i < CDPLUSG_SCREEN_HEIGHT; i++)
   {
-    char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
+    unsigned char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
     memset (row_pixels, color, CDPLUSG_SCREEN_WIDTH);
   }
 }
 
 void
 cdplusg_init_memory_preset_instruction (struct cdplusg_instruction *instruction,
-					char color, char repeat)
+					unsigned char color, char repeat)
 {
   instruction->type = MEMORY_PRESET;
   instruction->data[0] = color;
@@ -75,23 +74,23 @@ cdplusg_init_memory_preset_instruction (struct cdplusg_instruction *instruction,
 
 static void
 cdplusg_border_preset_action (const struct cdplusg_instruction *this,
-			      char *pixels, struct cdplusg_color_table_entry *)
+			      unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != BORDER_PRESET)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  char color = this->data[0] & 0x0F;
+  unsigned char color = this->data[0] & 0x0F;
 
   for (int i = 0; i < CDPLUSG_FONT_HEIGHT; i++)
   {
-    char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
+    unsigned char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
     memset (row_pixels, color, CDPLUSG_SCREEN_WIDTH);
   }
 
   for (int i = CDPLUSG_FONT_HEIGHT; i < CDPLUSG_SCREEN_HEIGHT - CDPLUSG_FONT_HEIGHT; i++)
   {
-    char *left_side_pixels = cdplusg_get_pixels_at (pixels, i, 0);
-    char *right_side_pixels =
+    unsigned char *left_side_pixels = cdplusg_get_pixels_at (pixels, i, 0);
+    unsigned char *right_side_pixels =
       cdplusg_get_pixels_at (pixels, i, CDPLUSG_SCREEN_WIDTH - CDPLUSG_FONT_WIDTH - 1);
 
     memset (left_side_pixels, color, CDPLUSG_FONT_WIDTH);
@@ -100,20 +99,20 @@ cdplusg_border_preset_action (const struct cdplusg_instruction *this,
 
   for (int i = CDPLUSG_SCREEN_HEIGHT - CDPLUSG_FONT_HEIGHT; i < CDPLUSG_FONT_HEIGHT; i++)
   {
-    char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
+    unsigned char *row_pixels = cdplusg_get_pixels_at (pixels, i, 0);
     memset (row_pixels, color, CDPLUSG_SCREEN_WIDTH);
   }
 }
 
 static void
 cdplusg_tile_block_action (const struct cdplusg_instruction *this,
-			   char *pixels, struct cdplusg_color_table_entry *)
+			   unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != TILE_BLOCK)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  char color_zero = this->data[0] & 0x0F;
-  char color_one = this->data[1] & 0x0F;
+  unsigned char color_zero = this->data[0] & 0x0F;
+  unsigned char color_one = this->data[1] & 0x0F;
 
   int row = (this->data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
   int col = (this->data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
@@ -134,13 +133,13 @@ cdplusg_tile_block_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
-			       char *pixels, struct cdplusg_color_table_entry *)
+			       unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != TILE_BLOCK_XOR)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  char color_zero = this->data[0] & 0x0F;
-  char color_one = this->data[1] & 0x0F;
+  unsigned char color_zero = this->data[0] & 0x0F;
+  unsigned char color_one = this->data[1] & 0x0F;
 
   int row = (this->data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
   int col = (this->data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
@@ -161,7 +160,7 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_load_color_table_low_action (const struct cdplusg_instruction *this,
-				     char *, struct cdplusg_color_table_entry *color_table)
+				     unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_LOW)
     cdplusg_debug_print ("warning: instruction type does not match action.");
@@ -178,7 +177,7 @@ cdplusg_load_color_table_low_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
-				      char *, struct cdplusg_color_table_entry *color_table)
+				      unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_HIGH)
     cdplusg_debug_print ("warning: instruction type does not match action.");
@@ -194,7 +193,7 @@ cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
 }
 
 void
-cdplusg_init_border_preset_instruction (struct cdplusg_instruction *instruction, char color)
+cdplusg_init_border_preset_instruction (struct cdplusg_instruction *instruction, unsigned char color)
 {
   instruction->type = BORDER_PRESET;
   instruction->data[0] = color;
@@ -260,7 +259,7 @@ cdplusg_create_graphics_state ()
   struct cdplusg_graphics_state *gpx_state =
     (struct cdplusg_graphics_state *) malloc (sizeof (struct cdplusg_graphics_state));
 
-  gpx_state->pixels = (char *) malloc (CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT);
+  gpx_state->pixels = (unsigned char *) malloc (CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT);
   gpx_state->color_table =
     (struct cdplusg_color_table_entry *) malloc (CDPLUS_COLOR_TABLE_SIZE *
 						 sizeof (struct cdplusg_color_table_entry));
@@ -288,7 +287,7 @@ cdplusg_update_graphics_state (struct cdplusg_graphics_state *gpx_state,
 }
 
 void
-cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, char *pixmap,
+cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsigned char *pixmap,
 					enum cdplusg_pixmap_format)
 {
   for (int i = 0; i < CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH; i++)

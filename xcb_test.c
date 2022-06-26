@@ -57,7 +57,7 @@ main (int argc, char **argv)
 		     screen->root_visual,	// visual              
 		     mask, values);	// masks, not used yet 
 
-  char image_data[4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT];
+  unsigned char image_data[4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT];
 
   xcb_pixmap_t pixmap = xcb_generate_id (connection);
   xcb_create_pixmap (connection, 24, pixmap, window, CDPLUSG_SCREEN_WIDTH, CDPLUSG_SCREEN_HEIGHT);
@@ -70,7 +70,7 @@ main (int argc, char **argv)
 						    XCB_IMAGE_FORMAT_Z_PIXMAP,
 						    24, NULL,
 						    CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT * 4,
-						    (unsigned char *) image_data);
+						    image_data);
 
   xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
 

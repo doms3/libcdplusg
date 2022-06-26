@@ -39,7 +39,7 @@ struct cdplusg_color_table_entry
 struct cdplusg_instruction
 {
   enum cdplusg_instruction_type type;
-  void (*action) (const struct cdplusg_instruction *, char *, struct cdplusg_color_table_entry *);
+  void (*action) (const struct cdplusg_instruction *, unsigned char *, struct cdplusg_color_table_entry *);
   char data[CDPLUSG_INSTRUCTION_DATA_WIDTH];
 };
 
@@ -50,15 +50,15 @@ struct cdplusg_graphics_state
 };
 
 void cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *, char *subchannel_data);
-void cdplusg_init_border_preset_instruction (struct cdplusg_instruction *, char color);
-void cdplusg_init_memory_preset_instruction (struct cdplusg_instruction *, char color, char repeat);
+void cdplusg_init_border_preset_instruction (struct cdplusg_instruction *, unsigned char color);
+void cdplusg_init_memory_preset_instruction (struct cdplusg_instruction *, unsigned char color, char repeat);
 void cdplusg_init_no_op_instruction (struct cdplusg_instruction *);
 
 struct cdplusg_graphics_state *cdplusg_create_graphics_state (void);
 void cdplusg_free_graphics_state (struct cdplusg_graphics_state *);
 void cdplusg_update_graphics_state (struct cdplusg_graphics_state *, struct cdplusg_instruction *);
 
-void cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *, char *pixmap,
+void cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *, unsigned char *pixmap,
 					     enum cdplusg_pixmap_format);
 
 int cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *, FILE *);
