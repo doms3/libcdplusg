@@ -30,22 +30,22 @@ enum cdplusg_pixmap_format
 
 struct cdplusg_color_table_entry
 {
-  char b;
-  char g;
-  char r;
-  char a;
+  unsigned char b;
+  unsigned char g;
+  unsigned char r;
+  unsigned char a;
 };
 
 struct cdplusg_instruction
 {
   enum cdplusg_instruction_type type;
   void (*action) (const struct cdplusg_instruction *, unsigned char *, struct cdplusg_color_table_entry *);
-  char data[CDPLUSG_INSTRUCTION_DATA_WIDTH];
+  unsigned char data[CDPLUSG_INSTRUCTION_DATA_WIDTH];
 };
 
 struct cdplusg_graphics_state
 {
-  char *pixels;
+  unsigned char *pixels;
   struct cdplusg_color_table_entry *color_table;
 };
 

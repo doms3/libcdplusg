@@ -33,7 +33,7 @@ cdplusg_init_no_op_instruction (struct cdplusg_instruction *instruction)
   instruction->action = &cdplusg_no_op_action;
 }
 
-static char *
+static unsigned char *
 cdplusg_get_pixels_at (unsigned char *pixels, int row, int col)
 {
   return &pixels[row * CDPLUSG_SCREEN_WIDTH + col];
@@ -117,7 +117,7 @@ cdplusg_tile_block_action (const struct cdplusg_instruction *this,
   int row = (this->data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
   int col = (this->data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
 
-  const char *tile_data = &this->data[4];
+  const unsigned char *tile_data = &this->data[4];
 
   for (int i = 0; i < CDPLUSG_FONT_HEIGHT; i++)
   {
@@ -144,7 +144,7 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
   int row = (this->data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
   int col = (this->data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
 
-  const char *tile_data = &this->data[4];
+  const unsigned char *tile_data = &this->data[4];
 
   for (int i = 0; i < CDPLUSG_FONT_HEIGHT; i++)
   {
