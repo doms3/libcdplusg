@@ -1,4 +1,4 @@
-CFLAGS += -I. -MD -MP
+CFLAGS += -I. -MD -MP -Wall -Wextra
 LDLIBS += -lxcb -lxcb-image
 
 .PHONY: all clean
