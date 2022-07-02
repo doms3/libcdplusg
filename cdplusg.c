@@ -159,14 +159,16 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
 }
 
 static void
-cdplusg_decode_color_to_struct (const unsigned char *color_data, struct cdplusg_color_table_entry *color_struct)
+cdplusg_decode_color_to_struct (const unsigned char *color_data,
+                                struct cdplusg_color_table_entry *color_struct)
 {
   //  -byte 0-  -byte 1-
   // xxrr rrgg xxgg bbbb
 
-  color_struct->r = (color_data[0] & 0x3C) >> 2;
-  color_struct->b = (color_data[1] & 0x0F) >> 0;
-  color_struct->g = ((color_data[0] & 0x03) << 2) | ((color_data[1] & 0x30) >> 4);
+  color_struct->r  = (color_data[0] & 0x3C) >> 2;
+  color_struct->b  = (color_data[1] & 0x0F) >> 0;
+  color_struct->g  = (color_data[0] & 0x03) << 2;
+  color_struct->g |= (color_data[1] & 0x30) >> 4;
 
   color_struct->r = 255 * color_struct->r / 15;
   color_struct->g = 255 * color_struct->g / 15;
@@ -188,7 +190,7 @@ cdplusg_load_color_table_low_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
-				      unsigned char *, struct cdplusg_color_table_entry *color_table)
+              unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_HIGH)
     cdplusg_debug_print ("warning: instruction type does not match action.");
@@ -200,7 +202,8 @@ cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
 }
 
 void
-cdplusg_init_border_preset_instruction (struct cdplusg_instruction *instruction, unsigned char color)
+cdplusg_init_border_preset_instruction (struct cdplusg_instruction *instruction,
+              unsigned char color)
 {
   instruction->type = BORDER_PRESET;
   instruction->data[0] = color;
@@ -214,10 +217,6 @@ cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *this, char
   char command = subchannel_data[0] & 0x3F;
   char instruction = subchannel_data[1] & 0x3F;
   char *data = &subchannel_data[4];
-
-  // TODO: Do something with these parity values.
-  // uint16_t q_channel_parity = *((uint16_t *) & subchannel_data[2]);
-  // uint32_t p_channel_parity = *((uint32_t *) & subchannel_data[4 + CDPLUSG_INSTRUCTION_DATA_WIDTH]);
 
   if (command != 0x09 || instruction == DEFINE_TRANSPARENT_COLOR || instruction == NO_OP)
   {
@@ -294,12 +293,13 @@ cdplusg_update_graphics_state (struct cdplusg_graphics_state *gpx_state,
 }
 
 void
-cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsigned char *pixmap,
-					enum cdplusg_pixmap_format, unsigned int scale_factor)
+cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state,
+              unsigned char *pixmap, enum cdplusg_pixmap_format, unsigned int scale_factor)
 {
   unsigned int source_index = 0;
   unsigned int target_index = 0;
   unsigned int saved_target_index = 0;
+  unsigned int scale_factor_sq = scale_factor * scale_factor;
 
   while (source_index < CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT)
   {
@@ -308,7 +308,7 @@ cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state
 
     for (unsigned int i = 0; i < scale_factor; i++)
     {
-      assert (target_index < scale_factor * scale_factor * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
+      assert (target_index < scale_factor_sq * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
 
       pixmap[target_index + 0] = color->b;
       pixmap[target_index + 1] = color->g;
@@ -324,9 +324,11 @@ cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state
     {
       for (unsigned int i = 1; i < scale_factor; i++)
       {
-        assert (target_index < scale_factor * scale_factor * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
+        assert (target_index < scale_factor_sq * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
 
-        memcpy (&pixmap[target_index], &pixmap[saved_target_index], scale_factor * 4 * CDPLUSG_SCREEN_WIDTH);
+        memcpy
+          (&pixmap[target_index], &pixmap[saved_target_index], scale_factor * 4 * CDPLUSG_SCREEN_WIDTH);
+        
         target_index += scale_factor * 4 * CDPLUSG_SCREEN_WIDTH;
       }
 
