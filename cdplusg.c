@@ -219,7 +219,7 @@ cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *this, char
   // uint16_t q_channel_parity = *((uint16_t *) & subchannel_data[2]);
   // uint32_t p_channel_parity = *((uint32_t *) & subchannel_data[4 + CDPLUSG_INSTRUCTION_DATA_WIDTH]);
 
-  if (command != 0x09 || instruction == DEFINE_TRANSPARENT_COLOR)
+  if (command != 0x09 || instruction == DEFINE_TRANSPARENT_COLOR || instruction == NO_OP)
   {
     cdplusg_init_no_op_instruction (this);
     return;
