@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <sys/time.h>
 
@@ -116,12 +117,20 @@ main (int argc, char **argv)
       struct timeval next_time;
       struct timeval time_difference;
 
-      do
+      gettimeofday (&next_time, NULL);
+      timersub (&next_time, &previous_time, &time_difference);
+
+      while (timercmp (&time_difference, &time_stride, <))
       {
-	      gettimeofday (&next_time, NULL);
+        struct timeval remaining_time;
+
+        timersub (&time_stride, &time_difference, &remaining_time);
+
+        usleep (3 * remaining_time.tv_usec / 4);
+
+        gettimeofday (&next_time, NULL);
 	      timersub (&next_time, &previous_time, &time_difference);
       }
-      while (timercmp (&time_difference, &time_stride, <));
 
       timeradd (&previous_time, &time_stride, &previous_time);
     }
