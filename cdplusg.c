@@ -159,19 +159,30 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
 }
 
 static void
+cdplusg_decode_color_to_struct (const unsigned char *color_data, struct cdplusg_color_table_entry *color_struct)
+{
+  //  -byte 0-  -byte 1-
+  // xxrr rrgg xxgg bbbb
+
+  color_struct->r = (color_data[0] & 0x3C) >> 2;
+  color_struct->b = (color_data[1] & 0x0F) >> 0;
+  color_struct->g = ((color_data[0] & 0x03) << 2) | ((color_data[1] & 0x30) >> 4);
+
+  color_struct->r = 255 * color_struct->r / 15;
+  color_struct->g = 255 * color_struct->g / 15;
+  color_struct->b = 255 * color_struct->b / 15;
+}
+
+static void
 cdplusg_load_color_table_low_action (const struct cdplusg_instruction *this,
 				     unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_LOW)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  short *colors = (short *) this->data;
-
   for (int i = 0; i < 8; i++)
   {
-    color_table[i].b = (colors[i] & 0x000F) << 4;
-    color_table[i].r = (colors[i] & 0x3C00) >> 6;
-    color_table[i].g = (colors[i] & 0x0030) | ((colors[i] & 0x0300) >> 2);
+    cdplusg_decode_color_to_struct (&this->data[2 * i], &color_table[i]);
   }
 }
 
@@ -182,13 +193,9 @@ cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
   if (this->type != LOAD_COLOR_TABLE_HIGH)
     cdplusg_debug_print ("warning: instruction type does not match action.");
 
-  short *colors = (short *) this->data;
-
   for (int i = 0; i < 8; i++)
   {
-    color_table[i + 8].b = (colors[i] & 0x000F) << 4;
-    color_table[i + 8].r = (colors[i] & 0x3C00) >> 6;
-    color_table[i + 8].g = (colors[i] & 0x0030) | ((colors[i] & 0x0300) >> 2);
+    cdplusg_decode_color_to_struct (&this->data[2 * i], &color_table[i + 8]);
   }
 }
 
@@ -303,7 +310,7 @@ cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state
     {
       assert (target_index < scale_factor * scale_factor * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
 
-      pixmap[target_index] = color->b;
+      pixmap[target_index + 0] = color->b;
       pixmap[target_index + 1] = color->g;
       pixmap[target_index + 2] = color->r;
       pixmap[target_index + 3] = color->a;
