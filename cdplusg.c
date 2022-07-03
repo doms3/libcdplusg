@@ -106,7 +106,7 @@ cdplusg_border_preset_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_tile_block_action (const struct cdplusg_instruction *this,
-			   unsigned char *pixels, struct cdplusg_color_table_entry *)
+              unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != TILE_BLOCK)
     cdplusg_debug_print ("warning: instruction type does not match action.");
@@ -160,7 +160,7 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
 
 static void
 cdplusg_decode_color_to_struct (const unsigned char *color_data,
-                                struct cdplusg_color_table_entry *color_struct)
+              struct cdplusg_color_table_entry *color_struct)
 {
   //  -byte 0-  -byte 1-
   // xxrr rrgg xxgg bbbb
