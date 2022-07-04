@@ -19,22 +19,26 @@
 
 #define FPS 30
 #define COMMANDS_PER_FRAME (300 / FPS)
-#define SCALE_FACTOR 4
+#define SCALE_FACTOR 3
 
 static_assert (300 % FPS == 0, "Frames per second must divide 300.");
 
-struct audio_info
+static char *progname;
+
+struct cdplusg_portaudio_context
 {
+  PaStream *stream;
+
   short *audio_bytes;
   unsigned long audio_size;
   unsigned long audio_head;
 };
 
 int
-portaudio_callback (const void *, void *output, unsigned long frame_count,
+cdplusg_portaudio_callback (const void *, void *output, unsigned long frame_count,
               const PaStreamCallbackTimeInfo *, PaStreamCallbackFlags, void *user_data)
 {
-  struct audio_info *info = (struct audio_info *) user_data;
+  struct cdplusg_portaudio_context *info = (struct cdplusg_portaudio_context *) user_data;
 
   unsigned long samples_to_tx = frame_count * 2;
   unsigned long bytes_to_tx = samples_to_tx * 2;
@@ -52,16 +56,188 @@ portaudio_callback (const void *, void *output, unsigned long frame_count,
   return paComplete;
 }
 
-void
-snd_lib_null_error_handler (const char *, int, const char *, int, const char *, ...) {}
+void snd_lib_null_error_handler (const char *, int, const char *, int, const char *, ...) {}
+void jack_null_handler (const char *) {}
 
 void
-libjack_null_handler (const char *) {}
+cdplusg_portaudio_context_initialize (struct cdplusg_portaudio_context *context, FILE *file)
+{
+  memset (context, 0x00, sizeof (struct cdplusg_portaudio_context));
+
+  fseek (file, 0L, SEEK_END);
+  context->audio_size = ftell (file);
+
+  if (context->audio_size == 0)
+  {
+    fclose (file);
+    fprintf (stderr,
+        "%s: debug: audio file has no contents, continuing without audio\n", progname);
+    return;
+  }
+
+  context->audio_bytes = (short *) malloc (context->audio_size);
+  rewind (file);
+
+  if (fread (context->audio_bytes, context->audio_size, 1, file) != 1)
+  {
+    fclose (file);
+    fprintf (stderr,
+        "%s: debug: could not read from audio file, continuing without audio\n", progname);
+    free (context->audio_bytes);
+    context->audio_size = 0;
+    return;
+  }
+
+  fclose (file);
+  context->audio_size = context->audio_size / sizeof (short);
+
+  // set custom error handler for ALSA errors
+  snd_lib_error_set_handler (snd_lib_null_error_handler);
+
+  jack_error_callback = jack_null_handler;
+  jack_info_callback  = jack_null_handler;
+
+  PaError error = Pa_Initialize ();
+
+  if (error != paNoError)
+  {
+    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+              Pa_GetErrorText (error));
+    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+    free (context->audio_bytes);
+    context->audio_size = 0;
+    return;
+  }
+
+  error = Pa_OpenDefaultStream (&context->stream, 0, 2, paInt16, 44100,
+            paFramesPerBufferUnspecified, cdplusg_portaudio_callback, context);
+
+  if (error != paNoError)
+  {
+    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+              Pa_GetErrorText (error));
+    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+
+    free (context->audio_bytes);
+    Pa_Terminate ();
+    context->audio_size = 0;
+    return;
+  }
+
+  error = Pa_StartStream (context->stream);
+
+  if (error != paNoError)
+  {
+    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+              Pa_GetErrorText (error));
+    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+
+    free (context->audio_bytes);
+
+    error = Pa_AbortStream (context->stream);
+
+    if (error != paNoError)
+    {
+      fprintf (stderr, "%s: error aborting portaudio stream: %s\n", progname,
+              Pa_GetErrorText (error));
+    }
+
+    Pa_Terminate ();
+    context->audio_size = 0;
+  }
+}
+
+void
+cdplusg_portaudio_context_destroy (struct cdplusg_portaudio_context *context)
+{
+  if (context->audio_size)
+  {
+      Pa_AbortStream (context->stream);
+      Pa_Terminate ();
+      free (context->audio_bytes);
+  }
+}
+
+struct cdplusg_xcb_context
+{
+  xcb_connection_t *connection;
+
+  xcb_image_t      *xcb_image;
+  size_t            image_data_size;
+  unsigned char    *image_data;
+
+  xcb_window_t      window;
+  xcb_pixmap_t      pixmap;
+  xcb_gcontext_t    gcontext;
+};
+
+void
+cdplusg_xcb_context_initialize (struct cdplusg_xcb_context *context)
+{
+  context->connection = xcb_connect (NULL, NULL);
+
+  const xcb_setup_t *setup = xcb_get_setup (context->connection);
+  xcb_screen_iterator_t iterator = xcb_setup_roots_iterator (setup);
+  xcb_screen_t *screen = iterator.data;
+
+  unsigned int mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+  unsigned int value_mask = XCB_EVENT_MASK_EXPOSURE;
+  unsigned int values [] = { screen->black_pixel, value_mask };
+
+  context->window = xcb_generate_id (context->connection);
+  xcb_create_window (context->connection, XCB_COPY_FROM_PARENT, context->window, screen->root,
+        0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+		    0, XCB_WINDOW_CLASS_INPUT_OUTPUT,	screen->root_visual, mask, values);
+
+  context->image_data_size =
+        SCALE_FACTOR * SCALE_FACTOR * 4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT;
+
+  context->image_data = (unsigned char *) malloc (context->image_data_size);
+
+  context->pixmap = xcb_generate_id (context->connection);
+  xcb_create_pixmap (context->connection, 24, context->pixmap, context->window,
+        SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
+
+  context->gcontext = xcb_generate_id (context->connection);
+  xcb_create_gc (context->connection, context->gcontext, context->pixmap, 0, NULL);
+
+  context->xcb_image = xcb_image_create_native (context->connection,
+	      SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+	      XCB_IMAGE_FORMAT_Z_PIXMAP,
+	      24, NULL, context->image_data_size, context->image_data);
+
+  xcb_map_window (context->connection, context->window);
+}
+
+void
+cdplusg_xcb_context_update_from_gpx_state (struct cdplusg_xcb_context *context,
+              struct cdplusg_graphics_state *gpx_state)
+{
+  cdplusg_write_graphics_state_to_pixmap
+    (gpx_state, context->image_data, CDPLUSG_Z_FORMAT, SCALE_FACTOR);
+
+  xcb_image_put
+    (context->connection, context->pixmap, context->gcontext, context->xcb_image, 0, 0, 0);
+
+  xcb_copy_area (context->connection, context->pixmap, context->window, context->gcontext,
+      0, 0, 0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
+  xcb_flush (context->connection);
+}
+
+void
+cdplusg_xcb_context_destroy (struct cdplusg_xcb_context *context)
+{
+  xcb_image_destroy (context->xcb_image);
+  xcb_free_pixmap (context->connection, context->pixmap);
+  xcb_disconnect (context->connection);
+  free (context->image_data);
+}
 
 int
 main (int argc, char **argv)
 {
-  char *progname = argv[0];
+  progname = argv[0];
+
   char *filename = argv[1];
 
   if (argc != 2)
@@ -79,11 +255,10 @@ main (int argc, char **argv)
   }
 
   char audio_filename [256];
-  const char *audio_file_extensions [] = { ".raw", ".ogg" };
+  const char *audio_file_extensions [] = { ".raw" };
   const char *audio_file_extension = audio_file_extensions[0];
 
-  struct audio_info info;
-  memset (&info, 0x00, sizeof (info));
+  struct cdplusg_portaudio_context audio_context;
 
   char *last_dot = strrchr (filename, '.');
 
@@ -94,150 +269,35 @@ main (int argc, char **argv)
 
   if (strlen (filename) + strlen (audio_file_extension) >= sizeof (audio_filename))
   {
-    fprintf (stderr, "%s: debug: could not deduce audio file name to look for, continuing without audio\n", progname);
-    goto continue_with_no_audio;
+    fprintf (stderr,
+        "%s: debug: could not deduce audio file name to look for, continuing without audio\n",
+        progname);
   }
-
-  strcpy (audio_filename, filename);
-  strcat (audio_filename, audio_file_extension);
-
-  PaStream *stream;
-
-  fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
-
-  FILE *audio_file = fopen (audio_filename, "r");
-
-  if (audio_file == NULL)
+  else
   {
-    fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname, audio_filename, strerror(errno));
-    goto continue_with_no_audio;
-  }
+    strcpy (audio_filename, filename);
+    strcat (audio_filename, audio_file_extension);
 
-  fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
-  fseek (audio_file, 0L, SEEK_END);
-  info.audio_size = ftell (audio_file);
+    fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
 
-  if (info.audio_size == 0)
-  {
-    fclose (audio_file);
-    fprintf (stderr, "%s: debug: audio file has no contents, continuing without audio\n", progname);
-    goto continue_with_no_audio;
-  }
+    FILE *audio_file = fopen (audio_filename, "r");
 
-  info.audio_bytes = (short *) malloc (info.audio_size);
-  rewind (audio_file);
-
-  if (fread (info.audio_bytes, info.audio_size, 1, audio_file) != 1)
-  {
-    fclose (audio_file);
-    fprintf (stderr, "%s: debug: could not read from audio file, continuing without audio\n", progname);
-    free (info.audio_bytes);
-    info.audio_size = 0;
-    goto continue_with_no_audio;
-  }
-
-  fclose (audio_file);
-  info.audio_size = info.audio_size / sizeof (short);
-
-  // set custom error handler for ALSA errors
-  snd_lib_error_set_handler (snd_lib_null_error_handler);
-
-  jack_error_callback = &libjack_null_handler;
-  jack_info_callback  = &libjack_null_handler;
-
-  PaError error = Pa_Initialize ();
-
-  if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
-    free (info.audio_bytes);
-    info.audio_size = 0;
-    goto continue_with_no_audio;
-  }
-
-  error = Pa_OpenDefaultStream (&stream, 0, 2, paInt16, 44100, paFramesPerBufferUnspecified,
-            portaudio_callback, &info);
-
-  if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
-
-    free (info.audio_bytes);
-    Pa_Terminate ();
-    info.audio_size = 0;
-    goto continue_with_no_audio;
-  }
-
-  error = Pa_StartStream (stream);
-
-  if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
-
-    free (info.audio_bytes);
-
-    error = Pa_AbortStream (stream);
-
-    if (error != paNoError)
+    if (audio_file == NULL)
     {
-      fprintf (stderr, "%s: error aborting portaudio stream: %s\n", progname,
-              Pa_GetErrorText (error));
+      fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname,
+          audio_filename, strerror(errno));
     }
+    else
+    {
+      fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
 
-    Pa_Terminate ();
-    info.audio_size = 0;
-    goto continue_with_no_audio;
+      cdplusg_portaudio_context_initialize (&audio_context, audio_file);
+    }
   }
 
-continue_with_no_audio:
-  /* Open the connection to the X server */
-  xcb_connection_t *connection = xcb_connect (NULL, NULL);
+  struct cdplusg_xcb_context xcb_context;
 
-  /* Get the first screen */
-  const xcb_setup_t *setup = xcb_get_setup (connection);
-  xcb_screen_iterator_t iterator = xcb_setup_roots_iterator (setup);
-  xcb_screen_t *screen = iterator.data;
-
-  unsigned int mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
-  unsigned int value_mask = XCB_EVENT_MASK_EXPOSURE;
-  unsigned int values [] = { screen->black_pixel, value_mask };
-
-  /* Create the window */
-  xcb_window_t window = xcb_generate_id (connection);
-  xcb_create_window (connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0,
-		    SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
-		    0, XCB_WINDOW_CLASS_INPUT_OUTPUT,	screen->root_visual, mask, values);
-
-  const size_t image_data_size =
-        SCALE_FACTOR * SCALE_FACTOR * 4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT;
-
-  unsigned char *image_data =
-        (unsigned char *) malloc (image_data_size);
-
-  xcb_pixmap_t pixmap = xcb_generate_id (connection);
-  xcb_create_pixmap (connection, 24, pixmap, window,
-        SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
-
-  xcb_gcontext_t gcontext = xcb_generate_id (connection);
-  xcb_create_gc (connection, gcontext, pixmap, 0, NULL);
-
-  xcb_image_t *xcb_image = xcb_image_create_native (connection,
-	      SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
-	      XCB_IMAGE_FORMAT_Z_PIXMAP,
-	      24, NULL, image_data_size, image_data);
-
-  xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
-
-  /* Map the window on the screen */
-  xcb_map_window (connection, window);
-  /* Make sure commands are sent before we pause so that the window gets shown */
-  xcb_flush (connection);
+  cdplusg_xcb_context_initialize (&xcb_context);
 
   struct cdplusg_instruction instruction;
   struct cdplusg_graphics_state *gpx_state = cdplusg_create_graphics_state ();
@@ -261,12 +321,7 @@ continue_with_no_audio:
 
     if (counter % COMMANDS_PER_FRAME == 0)
     {
-      cdplusg_write_graphics_state_to_pixmap (gpx_state, image_data, CDPLUSG_Z_FORMAT, SCALE_FACTOR);
-
-      xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
-      xcb_copy_area (connection, pixmap, window, gcontext,
-		     0, 0, 0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
-      xcb_flush (connection);
+      cdplusg_xcb_context_update_from_gpx_state (&xcb_context, gpx_state);
 
       struct timeval next_time;
       struct timeval time_difference;
@@ -291,17 +346,8 @@ continue_with_no_audio:
   }
 
   cdplusg_free_graphics_state (gpx_state);
-  xcb_image_destroy (xcb_image);
-  xcb_free_pixmap (connection, pixmap);
-  xcb_disconnect (connection);
-  free (image_data);
-
-  if (info.audio_size)
-  {
-      Pa_AbortStream (stream);
-      Pa_Terminate ();
-      free (info.audio_bytes);
-  }
+  cdplusg_xcb_context_destroy (&xcb_context);
+  cdplusg_portaudio_context_destroy (&audio_context);
 
   return 0;
 }
