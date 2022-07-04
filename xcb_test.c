@@ -45,20 +45,13 @@ main (int argc, char **argv)
 
   unsigned int mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
   unsigned int value_mask = XCB_EVENT_MASK_EXPOSURE;
-  unsigned int values[] = { screen->black_pixel, value_mask };
+  unsigned int values [] = { screen->black_pixel, value_mask };
 
   /* Create the window */
   xcb_window_t window = xcb_generate_id (connection);
-  xcb_create_window (connection,	// connection          
-		    XCB_COPY_FROM_PARENT,	// depth (same as root)
-		    window,	// window id
-		    screen->root,	// parent window
-		    0, 0,	// x, y
-		    SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,	// width, height
-		    0,		// border_width
-		    XCB_WINDOW_CLASS_INPUT_OUTPUT,	// class
-		    screen->root_visual,	// visual
-		    mask, values);	// masks, not used yet
+  xcb_create_window (connection, XCB_COPY_FROM_PARENT, window, screen->root, 0, 0,
+		    SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+		    0, XCB_WINDOW_CLASS_INPUT_OUTPUT,	screen->root_visual, mask, values);
 
   const size_t image_data_size =
         SCALE_FACTOR * SCALE_FACTOR * 4 * CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT;
@@ -99,6 +92,7 @@ main (int argc, char **argv)
   static_assert (10000 * COMMANDS_PER_FRAME / 3 <= 999999, "too many commands per frame");
 
   unsigned int counter = 0;
+
   while (cdplusg_get_next_instruction_from_file (&instruction, file) == 1)
   {
     counter++;
@@ -111,7 +105,6 @@ main (int argc, char **argv)
       xcb_image_put (connection, pixmap, gcontext, xcb_image, 0, 0, 0);
       xcb_copy_area (connection, pixmap, window, gcontext,
 		     0, 0, 0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
-
       xcb_flush (connection);
 
       struct timeval next_time;
