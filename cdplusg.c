@@ -265,10 +265,12 @@ cdplusg_create_graphics_state ()
   struct cdplusg_graphics_state *gpx_state =
     (struct cdplusg_graphics_state *) malloc (sizeof (struct cdplusg_graphics_state));
 
-  gpx_state->pixels = (unsigned char *) malloc (CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT);
+  gpx_state->pixels = (unsigned char *) calloc (CDPLUSG_SCREEN_WIDTH * CDPLUSG_SCREEN_HEIGHT, 1);
   gpx_state->color_table =
-    (struct cdplusg_color_table_entry *) malloc (CDPLUS_COLOR_TABLE_SIZE *
-						 sizeof (struct cdplusg_color_table_entry));
+    (struct cdplusg_color_table_entry *) calloc (CDPLUS_COLOR_TABLE_SIZE,
+        sizeof (struct cdplusg_color_table_entry));
+
+
 
   return gpx_state;
 }
