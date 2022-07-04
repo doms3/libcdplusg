@@ -5,6 +5,11 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <alsa/asoundlib.h>
+#include <jack/jack.h>
+
+#include <portaudio.h>
+
 #include <sys/time.h>
 
 #include <xcb/xcb.h>
@@ -18,23 +23,173 @@
 
 static_assert (300 % FPS == 0, "Frames per second must divide 300.");
 
+struct audio_info
+{
+  short  *audio_bytes;
+  size_t  audio_size;
+  size_t  audio_loc;
+};
+
+int
+portaudio_callback (const void *, void *output, unsigned long frame_count,
+              const PaStreamCallbackTimeInfo *, PaStreamCallbackFlags, void *user_data)
+{
+  struct audio_info *info = (struct audio_info *) user_data;
+  short *output_samples = (short *) output;
+
+  for (unsigned long i = 0; i < 2 * frame_count; i++)
+  {
+    output_samples[i] =
+      (info->audio_loc + i < info->audio_size) ? le16toh (info->audio_bytes[info->audio_loc + i]) : 0x00;
+  }
+
+  info->audio_loc += 2 * frame_count;
+
+  if (info->audio_loc > info->audio_size)
+  {
+    info->audio_loc = info->audio_size;
+    return paComplete;
+  }
+
+  return 0;
+}
+
+void
+snd_lib_null_error_handler (const char *, int, const char *, int, const char *, ...) {}
+
+void
+libjack_null_handler (const char *) {}
+
 int
 main (int argc, char **argv)
 {
+  char *progname = argv[0];
+  char *filename = argv[1];
+
   if (argc != 2)
   {
-    fprintf (stderr, "usage: %s [filename]\n", argv[0]);
+    fprintf (stderr, "usage: %s [filename]\n", progname);
     return 1;
   }
 
-  FILE *file = fopen (argv[1], "r");
+  FILE *file = fopen (filename, "r");
 
   if (file == NULL)
   {
-    fprintf (stderr, "error opening file %s: %s\n", argv[1], strerror(errno));
+    fprintf (stderr, "%s: error opening file '%s': %s\n", progname, filename, strerror(errno));
     return 1;
   }
 
+  char audio_filename [256];
+  const char *audio_file_extensions [] = { ".raw", ".ogg" };
+  char *filename_before_extension = strtok (filename, ".");
+
+  const char *audio_file_extension = audio_file_extensions[0];
+
+  struct audio_info info;
+  PaStream *stream;
+
+  memset (&info, 0x00, sizeof (info));
+
+  if (strlen (filename_before_extension) + strlen (audio_file_extension) <= 255)
+  {
+    strcpy (audio_filename, filename_before_extension);
+    strcat (audio_filename, audio_file_extension);
+
+    fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
+
+    FILE *audio_file = fopen (audio_filename, "r");
+
+    if (audio_file == NULL)
+    {
+      fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname, audio_filename, strerror(errno));
+      goto continue_with_no_audio;
+    }
+
+    fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
+    fseek (audio_file, 0L, SEEK_END);
+    info.audio_size = ftell (audio_file);
+
+    if (info.audio_size == 0)
+    {
+      fclose (audio_file);
+      fprintf (stderr, "%s: debug: audio file has no contents, continuing without audio\n", progname);
+      goto continue_with_no_audio;
+    }
+
+    info.audio_bytes = (short *) malloc (info.audio_size);
+    rewind (audio_file);
+
+    if (fread (info.audio_bytes, info.audio_size, 1, audio_file) != 1)
+    {
+      fclose (audio_file);
+      fprintf (stderr, "%s: debug: could not read from audio file, continuing without audio\n", progname);
+      free (info.audio_bytes);
+      info.audio_size = 0;
+      goto continue_with_no_audio;
+    }
+
+    fclose (audio_file);
+    info.audio_size = info.audio_size / sizeof (short);
+
+    // set custom error handler for ALSA errors
+    snd_lib_error_set_handler (snd_lib_null_error_handler);
+
+    jack_error_callback = &libjack_null_handler;
+    jack_info_callback  = &libjack_null_handler;
+
+    PaError error = Pa_Initialize ();
+
+    if (error != paNoError)
+    {
+      fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+                Pa_GetErrorText (error));
+      fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+      free (info.audio_bytes);
+      info.audio_size = 0;
+      goto continue_with_no_audio;
+    }
+
+    error = Pa_OpenDefaultStream (&stream, 0, 2, paInt16, 44100, paFramesPerBufferUnspecified,
+              portaudio_callback, &info);
+
+    if (error != paNoError)
+    {
+      fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+                Pa_GetErrorText (error));
+      fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+
+      free (info.audio_bytes);
+      Pa_Terminate ();
+      info.audio_size = 0;
+      goto continue_with_no_audio;
+    }
+
+    error = Pa_StartStream (stream);
+
+    if (error != paNoError)
+    {
+      fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
+                Pa_GetErrorText (error));
+      fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+
+      free (info.audio_bytes);
+
+      error = Pa_AbortStream (stream);
+
+      if (error != paNoError)
+      {
+        fprintf (stderr, "%s: error aborting portaudio stream: %s\n", progname,
+                Pa_GetErrorText (error));
+      }
+
+      Pa_Terminate ();
+      info.audio_size = 0;
+      goto continue_with_no_audio;
+    }
+  }
+
+continue_with_no_audio:
   /* Open the connection to the X server */
   xcb_connection_t *connection = xcb_connect (NULL, NULL);
 
@@ -134,6 +289,13 @@ main (int argc, char **argv)
   xcb_free_pixmap (connection, pixmap);
   xcb_disconnect (connection);
   free (image_data);
+
+  if (info.audio_size)
+  {
+      Pa_AbortStream (stream);
+      Pa_Terminate ();
+      free (info.audio_bytes);
+  }
 
   return 0;
 }

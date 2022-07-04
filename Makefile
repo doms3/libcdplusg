@@ -1,5 +1,5 @@
-CFLAGS += -I. -MD -MP -Wall -Wextra
-LDLIBS += -lxcb -lxcb-image
+CFLAGS += -I. -MD -MP -Wall -Wextra -march=native -pthread
+LDLIBS += -lxcb -lxcb-image -lportaudio -lasound -ljack -lm -lpthread
 
 .PHONY: all clean
 
