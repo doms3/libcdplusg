@@ -10,6 +10,9 @@
 
 #include <portaudio.h>
 
+#define MINIMP3_IMPLEMENTATION
+#include <minimp3_ex.h>
+
 #include <sys/time.h>
 
 #include <xcb/xcb.h>
@@ -19,7 +22,7 @@
 
 #define FPS 30
 #define COMMANDS_PER_FRAME (300 / FPS)
-#define SCALE_FACTOR 3
+#define SCALE_FACTOR 5
 
 static_assert (300 % FPS == 0, "Frames per second must divide 300.");
 
@@ -60,36 +63,43 @@ void snd_lib_null_error_handler (const char *, int, const char *, int, const cha
 void jack_null_handler (const char *) {}
 
 void
-cdplusg_portaudio_context_initialize (struct cdplusg_portaudio_context *context, FILE *file)
+cdplusg_portaudio_context_initialize (struct cdplusg_portaudio_context *context, const char *audio_filename)
 {
+  fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
+
   memset (context, 0x00, sizeof (struct cdplusg_portaudio_context));
 
-  fseek (file, 0L, SEEK_END);
-  context->audio_size = ftell (file);
+  mp3dec_t mp3_decoder;
+  mp3dec_file_info_t mp3_info;
+
+  int mp3_decoder_retval = mp3dec_load (&mp3_decoder, audio_filename, &mp3_info, NULL, NULL);
+
+  if (mp3_decoder_retval == MP3D_E_IOERROR)
+  {
+    fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname,
+        audio_filename, strerror(errno));
+    return;
+  }
+  else if (mp3_decoder_retval)
+  {
+    fprintf (stderr,
+        "%s: debug: something went wrong decoding the audio file '%s'\n", progname, audio_filename);
+    return;
+  }
+  
+  fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
+
+  context->audio_bytes = mp3_info.buffer;
+  mp3_info.buffer = NULL;  // tx ownership
+
+  context->audio_size = mp3_info.samples;
 
   if (context->audio_size == 0)
   {
-    fclose (file);
     fprintf (stderr,
         "%s: debug: audio file has no contents, continuing without audio\n", progname);
-    return;
+    goto error_pre_initialize;
   }
-
-  context->audio_bytes = (short *) malloc (context->audio_size);
-  rewind (file);
-
-  if (fread (context->audio_bytes, context->audio_size, 1, file) != 1)
-  {
-    fclose (file);
-    fprintf (stderr,
-        "%s: debug: could not read from audio file, continuing without audio\n", progname);
-    free (context->audio_bytes);
-    context->audio_size = 0;
-    return;
-  }
-
-  fclose (file);
-  context->audio_size = context->audio_size / sizeof (short);
 
   // set custom error handler for ALSA errors
   snd_lib_error_set_handler (snd_lib_null_error_handler);
@@ -100,51 +110,29 @@ cdplusg_portaudio_context_initialize (struct cdplusg_portaudio_context *context,
   PaError error = Pa_Initialize ();
 
   if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
-    free (context->audio_bytes);
-    context->audio_size = 0;
-    return;
-  }
+    goto error_post_initialize;
 
-  error = Pa_OpenDefaultStream (&context->stream, 0, 2, paInt16, 44100,
+  error = Pa_OpenDefaultStream (&context->stream, 0, 2, paInt16, mp3_info.hz,
             paFramesPerBufferUnspecified, cdplusg_portaudio_callback, context);
 
   if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
-
-    free (context->audio_bytes);
-    Pa_Terminate ();
-    context->audio_size = 0;
-    return;
-  }
+    goto error_post_initialize;
 
   error = Pa_StartStream (context->stream);
 
-  if (error != paNoError)
-  {
-    fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname,
-              Pa_GetErrorText (error));
-    fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+  if (error == paNoError)
+    return;
 
-    free (context->audio_bytes);
+  Pa_AbortStream (context->stream);
 
-    error = Pa_AbortStream (context->stream);
-
-    if (error != paNoError)
-    {
-      fprintf (stderr, "%s: error aborting portaudio stream: %s\n", progname,
-              Pa_GetErrorText (error));
-    }
-
-    Pa_Terminate ();
-    context->audio_size = 0;
-  }
+error_post_initialize:
+  fprintf (stderr, "%s: error initializing portaudio backend: %s\n", progname, Pa_GetErrorText (error));
+  fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+  Pa_Terminate ();
+error_pre_initialize:
+  free (context->audio_bytes);
+  context->audio_size = 0;
+  return;
 }
 
 void
@@ -255,7 +243,7 @@ main (int argc, char **argv)
   }
 
   char audio_filename [256];
-  const char *audio_file_extensions [] = { ".raw" };
+  const char *audio_file_extensions [] = { ".mp3" };
   const char *audio_file_extension = audio_file_extensions[0];
 
   struct cdplusg_portaudio_context audio_context;
@@ -278,21 +266,7 @@ main (int argc, char **argv)
     strcpy (audio_filename, filename);
     strcat (audio_filename, audio_file_extension);
 
-    fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
-
-    FILE *audio_file = fopen (audio_filename, "r");
-
-    if (audio_file == NULL)
-    {
-      fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname,
-          audio_filename, strerror(errno));
-    }
-    else
-    {
-      fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
-
-      cdplusg_portaudio_context_initialize (&audio_context, audio_file);
-    }
+    cdplusg_portaudio_context_initialize (&audio_context, audio_filename);
   }
 
   struct cdplusg_xcb_context xcb_context;

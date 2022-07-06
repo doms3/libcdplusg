@@ -1,4 +1,4 @@
-CFLAGS += $(USER_CFLAGS) -std=gnu2x -O3 -I. -g -MD -MP -Wall -Wextra -march=native -pthread
+CFLAGS += $(USER_CFLAGS) -std=gnu2x -O3 -I. -Iext -g -MD -MP -Wall -Wextra -march=native -pthread
 LDLIBS += -lxcb -lxcb-image -lportaudio -lasound -ljack -lm -lpthread
 
 .PHONY: all clean
