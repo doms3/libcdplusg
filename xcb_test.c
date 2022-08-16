@@ -22,7 +22,10 @@
 
 #define FPS 30
 #define COMMANDS_PER_FRAME (300 / FPS)
-#define SCALE_FACTOR 5
+#define SCALE_FACTOR 3
+
+#define XCB_SCREEN_WIDTH (SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH)
+#define XCB_SCREEN_HEIGHT (SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT)
 
 static_assert (300 % FPS == 0, "Frames per second must divide 300.");
 
@@ -174,7 +177,7 @@ cdplusg_xcb_context_initialize (struct cdplusg_xcb_context *context)
 
   context->window = xcb_generate_id (context->connection);
   xcb_create_window (context->connection, XCB_COPY_FROM_PARENT, context->window, screen->root,
-        0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+        0, 0, XCB_SCREEN_WIDTH, XCB_SCREEN_HEIGHT,
 		    0, XCB_WINDOW_CLASS_INPUT_OUTPUT,	screen->root_visual, mask, values);
 
   context->image_data_size =
@@ -184,13 +187,13 @@ cdplusg_xcb_context_initialize (struct cdplusg_xcb_context *context)
 
   context->pixmap = xcb_generate_id (context->connection);
   xcb_create_pixmap (context->connection, 24, context->pixmap, context->window,
-        SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
+        XCB_SCREEN_WIDTH, XCB_SCREEN_HEIGHT);
 
   context->gcontext = xcb_generate_id (context->connection);
   xcb_create_gc (context->connection, context->gcontext, context->pixmap, 0, NULL);
 
   context->xcb_image = xcb_image_create_native (context->connection,
-	      SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT,
+	      XCB_SCREEN_WIDTH, XCB_SCREEN_HEIGHT,
 	      XCB_IMAGE_FORMAT_Z_PIXMAP,
 	      24, NULL, context->image_data_size, context->image_data);
 
@@ -207,8 +210,24 @@ cdplusg_xcb_context_update_from_gpx_state (struct cdplusg_xcb_context *context,
   xcb_image_put
     (context->connection, context->pixmap, context->gcontext, context->xcb_image, 0, 0, 0);
 
+  xcb_get_geometry_cookie_t cookie = xcb_get_geometry (context->connection, context->window);
+  xcb_get_geometry_reply_t *reply = xcb_get_geometry_reply (context->connection, cookie, NULL);
+
+  unsigned int x = 0;
+  unsigned int y = 0;
+
+  if (reply->width > XCB_SCREEN_WIDTH)
+  {
+    x = (reply->width - XCB_SCREEN_WIDTH) / 2;
+  }
+
+  if (reply->height > XCB_SCREEN_HEIGHT)
+  {
+    y = (reply->height - XCB_SCREEN_HEIGHT) / 2;
+  }
+
   xcb_copy_area (context->connection, context->pixmap, context->window, context->gcontext,
-      0, 0, 0, 0, SCALE_FACTOR * CDPLUSG_SCREEN_WIDTH, SCALE_FACTOR * CDPLUSG_SCREEN_HEIGHT);
+      0, 0, x, y, XCB_SCREEN_WIDTH, XCB_SCREEN_HEIGHT);
   xcb_flush (context->connection);
 }
 
