@@ -4,3 +4,6 @@
 *.d
 xcb_test
 *.cdg
+media
+xcb-test
+

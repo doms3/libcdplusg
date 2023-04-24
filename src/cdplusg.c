@@ -9,10 +9,19 @@
 static_assert (sizeof (struct cdplusg_color_table_entry) == 4,
 	       "struct padding error, contact the maintainer");
 
+extern char *program_invocation_short_name;
+
 static void
 cdplusg_debug_print (const char *message)
 {
-  fputs (message, stderr);
+  fprintf (stderr, "%s: debug: %s\n", program_invocation_short_name, message);
+  return;
+}
+
+static void
+cdplusg_warning_print (const char *message)
+{
+  fprintf (stderr, "%s: warning: %s\n", program_invocation_short_name, message);
   return;
 }
 
@@ -21,7 +30,7 @@ cdplusg_no_op_action (const struct cdplusg_instruction *this, unsigned char *,
 		      struct cdplusg_color_table_entry *)
 {
   if (this->type != NO_OP)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   return;
 }
@@ -44,7 +53,7 @@ cdplusg_memory_preset_action (const struct cdplusg_instruction *this,
 			      unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != MEMORY_PRESET)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   unsigned char color = this->data[0] & 0x0F;
   int repeat = this->data[1] & 0x0F;
@@ -77,7 +86,7 @@ cdplusg_border_preset_action (const struct cdplusg_instruction *this,
 			      unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != BORDER_PRESET)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   unsigned char color = this->data[0] & 0x0F;
 
@@ -109,7 +118,7 @@ cdplusg_tile_block_action (const struct cdplusg_instruction *this,
               unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != TILE_BLOCK)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   unsigned char color_zero = this->data[0] & 0x0F;
   unsigned char color_one = this->data[1] & 0x0F;
@@ -136,10 +145,10 @@ cdplusg_tile_block_xor_action (const struct cdplusg_instruction *this,
 			       unsigned char *pixels, struct cdplusg_color_table_entry *)
 {
   if (this->type != TILE_BLOCK_XOR)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   unsigned char color_zero = this->data[0] & 0x0F;
-  unsigned char color_one = this->data[1] & 0x0F;
+  unsigned char color_one  = this->data[1] & 0x0F;
 
   int row = (this->data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
   int col = (this->data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
@@ -180,7 +189,7 @@ cdplusg_load_color_table_low_action (const struct cdplusg_instruction *this,
 				     unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_LOW)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   for (int i = 0; i < 8; i++)
   {
@@ -193,7 +202,7 @@ cdplusg_load_color_table_high_action (const struct cdplusg_instruction *this,
               unsigned char *, struct cdplusg_color_table_entry *color_table)
 {
   if (this->type != LOAD_COLOR_TABLE_HIGH)
-    cdplusg_debug_print ("warning: instruction type does not match action.");
+    cdplusg_warning_print ("instruction type does not match action");
 
   for (int i = 0; i < 8; i++)
   {
@@ -252,7 +261,7 @@ cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *this, char
     break;
   default:
     cdplusg_init_no_op_instruction (this);
-    fprintf (stderr, "warning: invalid instruction %2d found.\n", instruction);
+    fprintf (stderr, "%s: warning: invalid instruction %2d found.\n", program_invocation_short_name, instruction);
     return;
   }
 
@@ -343,6 +352,9 @@ int
 cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *instruction, FILE *file)
 {
   char subchannel_data[CDPLUSG_SUBCHANNEL_WIDTH];
+
+  if (file == NULL)
+    return 0;
 
   if (fread (subchannel_data, CDPLUSG_SUBCHANNEL_WIDTH, 1, file) == 0)
     return 0;
