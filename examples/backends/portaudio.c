@@ -2,15 +2,12 @@
 #include <string.h>
 
 #include <errno.h>
-
-#include <alsa/asoundlib.h>
-#include <jack/jack.h>
+#include <fcntl.h>
 
 #include <portaudio.h>
 
 #define MINIMP3_IMPLEMENTATION
 #include <minimp3_ex.h>
-
 
 struct cdplusg_portaudio_context
 {
@@ -43,9 +40,6 @@ cdplusg_portaudio_callback (const void *, void *output, unsigned long frame_coun
   info->audio_head = info->audio_size;
   return paComplete;
 }
-
-static void snd_lib_null_error_handler (const char *, int, const char *, int, const char *, ...) {}
-static void jack_null_handler (const char *) {}
 
 struct cdplusg_portaudio_context *
 cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_factor)
@@ -89,13 +83,19 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
     goto error_pre_initialize;
   }
 
-  // set custom error handler for ALSA errors
-  snd_lib_error_set_handler (snd_lib_null_error_handler);
-
-  jack_error_callback = jack_null_handler;
-  jack_info_callback = jack_null_handler;
+  // workaround to temporarily disable output to stderr
+  fflush (stderr);
+  int stderr_backup = dup (fileno (stderr));
+  int stdnull = open ("/dev/null", O_WRONLY);
+  dup2 (stdnull, fileno (stderr));
+  close (stdnull);
 
   PaError error = Pa_Initialize ();
+
+  // restore stderr
+  fflush (stderr);
+  dup2 (stderr_backup, fileno (stderr));
+  close (stderr_backup);
 
   if (error != paNoError)
     goto error_post_initialize;
