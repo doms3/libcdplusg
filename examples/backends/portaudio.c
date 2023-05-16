@@ -10,6 +10,13 @@
 #define MINIMP3_IMPLEMENTATION
 #include <minimp3_ex.h>
 
+#ifdef __GLIBC__
+extern char *program_invocation_short_name;
+#define PROGNAME() program_invocation_short_name
+#else
+#define PROGNAME() getprogname ()
+#endif
+
 struct cdplusg_portaudio_context
 {
   PaStream *stream;
@@ -45,10 +52,7 @@ cdplusg_portaudio_callback (const void *, void *output, unsigned long frame_coun
 struct cdplusg_portaudio_context *
 cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_factor)
 {
-  extern char *program_invocation_short_name;
-  const char *progname = program_invocation_short_name;
-
-  fprintf (stderr, "%s: debug: attempting to open file '%s'\n", progname, audio_filename);
+  fprintf (stderr, "%s: debug: attempting to open file '%s'\n", PROGNAME (), audio_filename);
   mp3dec_t mp3_decoder;
   mp3dec_file_info_t mp3_info;
 
@@ -56,18 +60,18 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
 
   if (mp3_decoder_retval == MP3D_E_IOERROR)
   {
-    fprintf (stderr, "%s: debug: could not open file '%s': %s\n", progname,
+    fprintf (stderr, "%s: debug: could not open file '%s': %s\n", PROGNAME (),
                audio_filename, strerror (errno));
     return NULL;
   }
   else if (mp3_decoder_retval)
   {
     fprintf (stderr, "%s: debug: something went wrong decoding the audio file '%s'\n",
-               progname, audio_filename);
+               PROGNAME (), audio_filename);
     return NULL;
   }
   
-  fprintf (stderr, "%s: debug: successfully opened file '%s'\n", progname, audio_filename);
+  fprintf (stderr, "%s: debug: successfully opened file '%s'\n", PROGNAME (), audio_filename);
 
   struct cdplusg_portaudio_context *context =
     (struct cdplusg_portaudio_context *) calloc (1, sizeof (struct cdplusg_portaudio_context));  
@@ -80,7 +84,7 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
   if (context->audio_size == 0)
   {
     fprintf (stderr,
-        "%s: debug: audio file has no contents, continuing without audio\n", progname);
+        "%s: debug: audio file has no contents, continuing without audio\n", PROGNAME ());
     goto error_pre_initialize;
   }
 
@@ -116,8 +120,8 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
 
 error_post_initialize:
   fprintf (stderr, "%s: error: error initializing portaudio backend: %s\n",
-             progname, Pa_GetErrorText (error));
-  fprintf (stderr, "%s: debug: continuing with no audio\n", progname);
+             PROGNAME (), Pa_GetErrorText (error));
+  fprintf (stderr, "%s: debug: continuing with no audio\n", PROGNAME ());
   Pa_Terminate ();
 error_pre_initialize:
   free (context->audio_bytes);
