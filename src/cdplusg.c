@@ -9,20 +9,25 @@
 static_assert (sizeof (struct cdplusg_color_table_entry) == 4,
 	       "struct padding error, contact the maintainer");
 
+#ifdef __GLIBC__
 extern char *program_invocation_short_name;
+#define PROGNAME() program_invocation_short_name
+#else
+#define PROGNAME() getprogname ()
+#endif
 
 [[maybe_unused]]
 static void
 cdplusg_debug_print (const char *message)
 {
-  fprintf (stderr, "%s: debug: %s\n", program_invocation_short_name, message);
+  fprintf (stderr, "%s: debug: %s\n", PROGNAME(), message);
   return;
 }
 
 static void
 cdplusg_warning_print (const char *message)
 {
-  fprintf (stderr, "%s: warning: %s\n", program_invocation_short_name, message);
+  fprintf (stderr, "%s: warning: %s\n", PROGNAME(), message);
   return;
 }
 
@@ -262,7 +267,7 @@ cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *this, char
     break;
   default:
     cdplusg_init_no_op_instruction (this);
-    fprintf (stderr, "%s: warning: invalid instruction %2d found.\n", program_invocation_short_name, instruction);
+    fprintf (stderr, "%s: warning: invalid instruction %2d found.\n", PROGNAME(), instruction);
     return;
   }
 
