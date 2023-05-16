@@ -22,7 +22,7 @@ all : libcdplusg.a xcb-test
 libcdplusg.a : src/cdplusg.o 
 	$(AR) $(ARFLAGS) $@ $^
 
-xcb-test : ext/minimp3_ex.h examples/xcb_test.o libcdplusg.a examples/backends/portaudio.o
+xcb-test : ext/minimp3_ex.h examples/xcb_test.o examples/backends/portaudio.o libcdplusg.a
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 ext/minimp3_ex.h : ext/minimp3.h
