@@ -11,6 +11,7 @@ static_assert (sizeof (struct cdplusg_color_table_entry) == 4,
 
 extern char *program_invocation_short_name;
 
+[[maybe_unused]]
 static void
 cdplusg_debug_print (const char *message)
 {

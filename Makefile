@@ -1,7 +1,7 @@
 WGET ?= wget -q
 MKDIR ?= mkdir -p
 
-CFLAGS += $(USER_CFLAGS) -std=gnu2x -O3 -Iinclude -Iext -g -MD -MP -Wall -Wextra -march=native -pthread
+CFLAGS += $(USER_CFLAGS) -std=gnu2x -O3 -Iinclude -Iext -g -MD -MP -Wall -Wextra -pthread
 LDLIBS += -lxcb -lxcb-image -lportaudio -lasound -ljack -lm -lpthread
 
 .PHONY: all clean
@@ -11,7 +11,7 @@ all : libcdplusg.a xcb-test
 libcdplusg.a : src/cdplusg.o 
 	$(AR) $(ARFLAGS) $@ $^
 
-xcb-test : examples/xcb_test.o libcdplusg.a examples/backends/portaudio.o ext/minimp3_ex.h
+xcb-test : ext/minimp3_ex.h examples/xcb_test.o libcdplusg.a examples/backends/portaudio.o
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
 ext/minimp3_ex.h : ext/minimp3.h
