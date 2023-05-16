@@ -41,6 +41,13 @@ void
 cdplusg_xcb_context_initialize (struct cdplusg_xcb_context *context)
 {
   context->connection = xcb_connect (NULL, NULL);
+  int xcb_connection_error = xcb_connection_has_error (context->connection);
+
+  if (xcb_connection_error != 0)
+  {
+    fprintf (stderr, "%s: xcb_connection_has_error: %d\n", progname, xcb_connection_error);
+    exit (1);
+  }
 
   const xcb_setup_t *setup = xcb_get_setup (context->connection);
   xcb_screen_iterator_t iterator = xcb_setup_roots_iterator (setup);
