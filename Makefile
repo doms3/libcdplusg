@@ -1,8 +1,19 @@
 WGET ?= wget -q
 MKDIR ?= mkdir -p
 
-CFLAGS += $(USER_CFLAGS) -std=gnu2x -O3 -Iinclude -Iext -g -MD -MP -Wall -Wextra -pthread
-LDLIBS += -lxcb -lxcb-image -lportaudio -lasound -ljack -lm -lpthread
+PORTAUDIO_LIBS=$(shell pkg-config --libs portaudio-2.0)
+PORTAUDIO_CFLAGS=$(shell pkg-config --cflags portaudio-2.0)
+
+XCB_LIBS=$(shell pkg-config --libs xcb)
+XCB_CFLAGS=$(shell pkg-config --cflags xcb)
+
+XCB_IMAGE_LIBS=$(shell pkg-config --libs xcb-image)
+XCB_IMAGE_CFLAGS=$(shell pkg-config --cflags xcb-image)
+
+DEFAULT_CFLAGS = -std=gnu2x -O2 -Iinclude -Iext -g -MD -MP -Wall -Wextra
+
+CFLAGS += $(USER_CFLAGS) $(DEFAULT_CFLAGS) $(PORTAUDIO_CFLAGS) $(XCB_CFLAGS) $(XCB_IMAGE_CFLAGS)
+LDLIBS += $(USER_LDLIBS) $(PORTAUDIO_LIBS) $(PORTAUDIO_LIBS) $(XCB_LIBS) $(XCB_IMAGE_LIBS)
 
 .PHONY: all clean
 
