@@ -88,8 +88,8 @@ void
 cdplusg_xcb_context_update_from_gpx_state (struct cdplusg_xcb_context *context,
               struct cdplusg_graphics_state *gpx_state)
 {
-  cdplusg_write_graphics_state_to_pixmap
-    (gpx_state, context->image_data, CDPLUSG_Z_FORMAT, DEFAULT_SCALE_FACTOR);
+  cdplusg_graphics_state_to_pixmap
+    (gpx_state, context->image_data, DEFAULT_SCALE_FACTOR);
 
   xcb_image_put
     (context->connection, context->pixmap, context->gcontext, context->xcb_image, 0, 0, 0);
@@ -177,7 +177,7 @@ main (int argc, char **argv)
   cdplusg_xcb_context_initialize (&xcb_context);
 
   struct cdplusg_instruction instruction;
-  struct cdplusg_graphics_state *gpx_state = cdplusg_create_graphics_state ();
+  struct cdplusg_graphics_state *gpx_state = cdplusg_graphics_state_new ();
 
   struct timeval previous_time;
   gettimeofday (&previous_time, NULL);
@@ -190,10 +190,10 @@ main (int argc, char **argv)
 
   unsigned int counter = 0;
 
-  while (cdplusg_get_next_instruction_from_file (&instruction, file) == 1)
+  while (cdplusg_instruction_initialize_from_file (&instruction, file) == 1)
   {
     counter++;
-    cdplusg_update_graphics_state (gpx_state, &instruction);
+    cdplusg_graphics_state_apply_instruction (gpx_state, &instruction);
 
     if (counter % COMMANDS_PER_FRAME == 0)
     {
@@ -221,7 +221,7 @@ main (int argc, char **argv)
     }
   }
 
-  cdplusg_free_graphics_state (gpx_state);
+  cdplusg_graphics_state_free (gpx_state);
   cdplusg_xcb_context_destroy (&xcb_context);
   cdplusg_portaudio_context_destroy (audio_context);
 

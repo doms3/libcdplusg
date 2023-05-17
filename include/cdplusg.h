@@ -9,7 +9,13 @@
 #define CDPLUSG_SUBCHANNEL_WIDTH 24
 #define CDPLUSG_INSTRUCTION_DATA_WIDTH 16
 
-#define CDPLUS_COLOR_TABLE_SIZE 16
+#define CDPLUSG_COLOR_TABLE_SIZE 16
+#define CDPLUSG_LOAD_COLOR_TABLE_SIZE 8
+
+#define CDPLUSG_SCROLL_UP 0
+#define CDPLUSG_SCROLL_DOWN 1
+#define CDPLUSG_SCROLL_LEFT 2
+#define CDPLUSG_SCROLL_RIGHT 3
 
 enum cdplusg_instruction_type
 {
@@ -25,9 +31,6 @@ enum cdplusg_instruction_type
   TILE_BLOCK_XOR = 38
 };
 
-enum cdplusg_pixmap_format
-{ CDPLUSG_Z_FORMAT };
-
 struct cdplusg_color_table_entry
 {
   unsigned char b;
@@ -39,8 +42,20 @@ struct cdplusg_color_table_entry
 struct cdplusg_instruction
 {
   enum cdplusg_instruction_type type;
-  void (*action) (const struct cdplusg_instruction *, unsigned char *, struct cdplusg_color_table_entry *);
-  unsigned char data[CDPLUSG_INSTRUCTION_DATA_WIDTH];
+
+  unsigned char color0;
+  unsigned char color1;
+
+  int repeat;
+  int row;
+  int column;
+
+  int direction;
+  int offset;
+
+  unsigned char tile [CDPLUSG_FONT_HEIGHT];
+
+  struct cdplusg_color_table_entry color_table [CDPLUSG_LOAD_COLOR_TABLE_SIZE];
 };
 
 struct cdplusg_graphics_state
@@ -49,16 +64,20 @@ struct cdplusg_graphics_state
   struct cdplusg_color_table_entry *color_table;
 };
 
-void cdplusg_init_instruction_from_subchannel (struct cdplusg_instruction *, char *subchannel_data);
-void cdplusg_init_border_preset_instruction (struct cdplusg_instruction *, unsigned char color);
-void cdplusg_init_memory_preset_instruction (struct cdplusg_instruction *, unsigned char color, char repeat);
-void cdplusg_init_no_op_instruction (struct cdplusg_instruction *);
+void cdplusg_instruction_initialize_from_subchannel (struct cdplusg_instruction *instruction, const char *subchannel);
+int cdplusg_instruction_initialize_from_file (struct cdplusg_instruction *instruction, FILE *file);
 
-struct cdplusg_graphics_state *cdplusg_create_graphics_state (void);
-void cdplusg_free_graphics_state (struct cdplusg_graphics_state *);
-void cdplusg_update_graphics_state (struct cdplusg_graphics_state *, struct cdplusg_instruction *);
+void cdplusg_instruction_initialize_no_op (struct cdplusg_instruction *instruction);
+void cdplusg_instruction_initialize_border_preset (struct cdplusg_instruction *instruction, unsigned char color);
+void cdplusg_instruction_initialize_memory_preset (struct cdplusg_instruction *instruction, unsigned char color, char repeat);
+void cdplusg_instruction_initialize_tile_block (struct cdplusg_instruction *instruction, unsigned char color0, unsigned char color1, int row, int column, const unsigned char *tile);
+void cdplusg_instruction_initialize_tile_block_xor (struct cdplusg_instruction *instruction, unsigned char color0, unsigned char color1, int row, int column, const unsigned char *tile);
+void cdplusg_instruction_initialize_load_color_table_low  (struct cdplusg_instruction *instruction, const struct cdplusg_color_table_entry *color_table);
+void cdplusg_instruction_initialize_load_color_table_high (struct cdplusg_instruction *instruction, const struct cdplusg_color_table_entry *color_table);
 
-void cdplusg_write_graphics_state_to_pixmap (struct cdplusg_graphics_state *, unsigned char *pixmap,
-					     enum cdplusg_pixmap_format, unsigned int scale_factor);
+struct cdplusg_graphics_state *cdplusg_graphics_state_new (void);
+void cdplusg_graphics_state_free (struct cdplusg_graphics_state *state);
 
-int cdplusg_get_next_instruction_from_file (struct cdplusg_instruction *, FILE *);
+void cdplusg_graphics_state_apply_instruction (struct cdplusg_graphics_state *state, struct cdplusg_instruction *instruction);
+void cdplusg_graphics_state_to_pixmap (struct cdplusg_graphics_state *state, unsigned char *pixmap, unsigned int scale_factor);
+
