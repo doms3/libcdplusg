@@ -10,10 +10,10 @@ XCB_CFLAGS=$(shell pkg-config --cflags xcb)
 XCB_IMAGE_LIBS=$(shell pkg-config --libs xcb-image)
 XCB_IMAGE_CFLAGS=$(shell pkg-config --cflags xcb-image)
 
-DEFAULT_CFLAGS = -std=c2x -pedantic -O2 -Iinclude -Iext -g -MD -MP -Wall -Wextra
+DEFAULT_CFLAGS = -std=c11 -pedantic -O2 -Iinclude -Iext -g -MD -MP -Wall -Wextra
 
 CFLAGS += $(USER_CFLAGS) $(DEFAULT_CFLAGS) $(PORTAUDIO_CFLAGS) $(XCB_CFLAGS) $(XCB_IMAGE_CFLAGS)
-LDLIBS += $(USER_LDLIBS) $(PORTAUDIO_LIBS) $(XCB_LIBS) $(XCB_IMAGE_LIBS)
+LDLIBS += $(USER_LDFLAGS) $(PORTAUDIO_LIBS) $(XCB_LIBS) $(XCB_IMAGE_LIBS)
 
 XCB_TEST_OBJS = \
 	examples/xcb_test.o \

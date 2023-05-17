@@ -28,10 +28,14 @@ struct cdplusg_portaudio_context
 };
 
 static int
-cdplusg_portaudio_callback (const void *, void *output, unsigned long frame_count,
-                              const PaStreamCallbackTimeInfo *,
-                              PaStreamCallbackFlags, void *user_data)
+cdplusg_portaudio_callback (const void *data, void *output, unsigned long frame_count,
+                              const PaStreamCallbackTimeInfo *time_info,
+                              PaStreamCallbackFlags callback_flags, void *user_data)
 {
+  (void) time_info;
+  (void) callback_flags;
+  (void) data;
+
   struct cdplusg_portaudio_context *info = (struct cdplusg_portaudio_context *) user_data;
 
   unsigned long samples_to_tx = frame_count * 2;
