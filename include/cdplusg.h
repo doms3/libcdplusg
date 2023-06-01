@@ -75,9 +75,14 @@ void cdplusg_instruction_initialize_tile_block_xor (struct cdplusg_instruction *
 void cdplusg_instruction_initialize_load_color_table_low  (struct cdplusg_instruction *instruction, const struct cdplusg_color_table_entry *color_table);
 void cdplusg_instruction_initialize_load_color_table_high (struct cdplusg_instruction *instruction, const struct cdplusg_color_table_entry *color_table);
 
+/** TODO: Implement these other instructions
+ * void cdplusg_instruction_initialize_define_transparent_color (struct cdplusg_instruction *instruction, unsigned char color);
+ * void cdplusg_instruction_initialize_scroll_preset (struct cdplusg_instruction *instruction, unsigned char color, char direction, char offset);
+ * void cdplusg_instruction_initialize_scroll_copy (struct cdplusg_instruction *instruction, char direction, char offset);
+ **/
+
 struct cdplusg_graphics_state *cdplusg_graphics_state_new (void);
 void cdplusg_graphics_state_free (struct cdplusg_graphics_state *state);
-
 void cdplusg_graphics_state_apply_instruction (struct cdplusg_graphics_state *state, struct cdplusg_instruction *instruction);
 void cdplusg_graphics_state_to_pixmap (struct cdplusg_graphics_state *state, unsigned char *pixmap, unsigned int scale_factor);
 
