@@ -89,7 +89,7 @@ cdplusg_xcb_context_update_from_gpx_state (struct cdplusg_xcb_context *context,
               struct cdplusg_graphics_state *gpx_state)
 {
   cdplusg_graphics_state_to_pixmap
-    (gpx_state, context->image_data, DEFAULT_SCALE_FACTOR);
+    (gpx_state, context->image_data, DEFAULT_SCALE_FACTOR, CDPLUSG_BYTE_ORDER_BGR);
 
   xcb_image_put
     (context->connection, context->pixmap, context->gcontext, context->xcb_image, 0, 0, 0);

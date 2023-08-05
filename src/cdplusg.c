@@ -307,7 +307,7 @@ cdplusg_graphics_state_apply_instruction (struct cdplusg_graphics_state *gpx_sta
 }
 
 void
-cdplusg_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsigned char *pixmap, unsigned int scale_factor)
+cdplusg_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsigned char *pixmap, unsigned int scale_factor, enum cdplusg_byte_order byte_order)
 {
   unsigned int source_index = 0;
   unsigned int target_index = 0;
@@ -323,12 +323,20 @@ cdplusg_graphics_state_to_pixmap (struct cdplusg_graphics_state *gpx_state, unsi
     {
       assert (target_index < scale_factor_sq * 4 * CDPLUSG_SCREEN_HEIGHT * CDPLUSG_SCREEN_WIDTH);
 
-      pixmap[target_index + 0] = color->b;
-      pixmap[target_index + 1] = color->g;
-      pixmap[target_index + 2] = color->r;
-      pixmap[target_index + 3] = color->a;
-
-      target_index += 4;
+      if (byte_order == CDPLUSG_BYTE_ORDER_RGB)
+      {
+        pixmap[target_index++] = color->r;
+        pixmap[target_index++] = color->g;
+        pixmap[target_index++] = color->b;
+        pixmap[target_index++] = 0xFF;
+      }
+      else
+      {
+        pixmap[target_index++] = color->b;
+        pixmap[target_index++] = color->g;
+        pixmap[target_index++] = color->r;
+        pixmap[target_index++] = 0xFF;
+      }
     }
 
     source_index += 1;
