@@ -25,6 +25,11 @@ struct cdplusg_portaudio_context
   short *audio_bytes;
   unsigned long audio_size;
   unsigned long audio_head;
+
+  double scale_factor;
+  int samples_per_second;
+
+  int is_playing;
 };
 
 static int
@@ -81,10 +86,12 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
   struct cdplusg_portaudio_context *context =
     (struct cdplusg_portaudio_context *) calloc (1, sizeof (struct cdplusg_portaudio_context));  
 
+  context->is_playing = 0;
   context->audio_bytes = mp3_info.buffer;
   mp3_info.buffer = NULL;  // tx ownership
 
   context->audio_size = mp3_info.samples;
+  context->scale_factor = scale_factor;
 
   if (context->audio_size == 0)
   {
@@ -113,13 +120,18 @@ cdplusg_portaudio_context_initialize (const char *audio_filename, double scale_f
   error = Pa_OpenDefaultStream (&context->stream, 0, 2, paInt16, scale_factor * mp3_info.hz,
             paFramesPerBufferUnspecified, cdplusg_portaudio_callback, context);
 
+  context->samples_per_second = 2 * mp3_info.hz;
+
   if (error != paNoError)
     goto error_post_initialize;
 
   error = Pa_StartStream (context->stream);
 
   if (error == paNoError)
+  {
+    context->is_playing = 1;
     return context;
+  }
 
   Pa_AbortStream (context->stream);
 
@@ -133,6 +145,47 @@ error_pre_initialize:
   context->audio_size = 0;
   free (context);
   return NULL;
+}
+
+unsigned int
+cdplusg_portaudio_context_get_elapsed_time_ms (struct cdplusg_portaudio_context *context)
+{
+  return (unsigned int) (context->audio_head * 1000 / (context->scale_factor * context->samples_per_second));
+}
+
+void
+cdplusg_portaudio_context_restart (struct cdplusg_portaudio_context *context)
+{
+  context->audio_head = 0;
+}
+
+void
+cdplusg_portaudio_context_pause (struct cdplusg_portaudio_context *context)
+{
+  if (context->is_playing)
+  {
+    Pa_StopStream (context->stream);
+    context->is_playing = 0;
+  }
+}
+
+void
+cdplusg_portaudio_context_resume (struct cdplusg_portaudio_context *context)
+{
+  if (!context->is_playing)
+  {
+    Pa_StartStream (context->stream);
+    context->is_playing = 1;
+  }
+}
+
+void
+cdplusg_portaudio_context_toggle_playback (struct cdplusg_portaudio_context *context)
+{
+  if (context->is_playing)
+    cdplusg_portaudio_context_pause (context);
+  else
+    cdplusg_portaudio_context_resume (context);
 }
 
 void
