@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h> // for FILE *
+
 #define CDPLUSG_SCREEN_HEIGHT 216
 #define CDPLUSG_SCREEN_WIDTH  300
 
