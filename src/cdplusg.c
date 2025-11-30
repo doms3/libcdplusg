@@ -214,6 +214,13 @@ cdplusg_instruction_initialize_from_subchannel (struct cdplusg_instruction *this
       int row = (data[2] & 0x1F) * CDPLUSG_FONT_HEIGHT;
       int column = (data[3] & 0x3F) * CDPLUSG_FONT_WIDTH;
 
+      if (row + CDPLUSG_FONT_HEIGHT > CDPLUSG_SCREEN_HEIGHT || column + CDPLUSG_FONT_WIDTH > CDPLUSG_SCREEN_WIDTH)
+      {
+        fprintf(stderr, "%s: warning: invalid TILE_BLOCK instruction found, row %d, column %d.\n", PROGNAME(), row, column);
+        cdplusg_instruction_initialize_no_op(this);
+        break;
+      }
+
       const unsigned char *tile = &data[4];
 
       if (instruction == TILE_BLOCK)
